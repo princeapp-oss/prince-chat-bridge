@@ -8,7 +8,6 @@ if (!admin.apps.length) {
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-    // Check karein kaun sa variable missing hai
     let missing = [];
     if (!projectId) missing.push('PROJECT_ID');
     if (!clientEmail) missing.push('CLIENT_EMAIL');
@@ -18,14 +17,15 @@ if (!admin.apps.length) {
       throw new Error(`Missing env vars: ${missing.join(', ')}`);
     }
 
-    // Newlines ko properly format karein
+    // Private key ke extra quotes aur literal \n ko properly clean karo
+    privateKey = privateKey.trim().replace(/^["']|["']$/g, '');
     privateKey = privateKey.replace(/\\n/g, '\n');
 
     admin.initializeApp({
       credential: admin.credential.cert({
-        projectId,
-        clientEmail,
-        privateKey,
+        projectId: projectId.trim(),
+        clientEmail: clientEmail.trim(),
+        privateKey: privateKey,
       }),
     });
   } catch (error) {
@@ -39,9 +39,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Ab exact error message seedha response mein dikhega
+  // Agar initialization fail ho, toh poora exact error message return karo
   if (initError) {
-    return res.status(500).json({ error: `Initialization Failed: ${initError}` });
+    return res.status(500).json({ error: `Init Failed: ${initError}` });
   }
 
   try {
@@ -65,3 +65,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: error.message });
   }
 }
+
