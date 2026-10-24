@@ -7,49 +7,57 @@ if (!admin.apps.length) {
   try {
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+    let rawKey = process.env.FIREBASE_PRIVATE_KEY;
 
     let missing = [];
     if (!projectId) missing.push('PROJECT_ID');
     if (!clientEmail) missing.push('CLIENT_EMAIL');
-    if (!privateKey) missing.push('PRIVATE_KEY');
+    if (!rawKey) missing.push('PRIVATE_KEY');
 
     if (missing.length > 0) {
       throw new Error(`Missing env vars: ${missing.join(', ')}`);
     }
 
     // Clean surrounding quotes or whitespace
-    privateKey = privateKey.trim().replace(/^["']|["']$/g, '');
+    let privateKey = rawKey.trim().replace(/^["']|["']$/g, '');
 
-    // Check if it's Base64 encoded (doesn't contain PEM header yet)
-    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    // Try decoding Base64 if it's encoded
+    try {
+      const decoded = Buffer.from(privateKey, 'base64').toString('utf8');
+      if (decoded.includes('-----BEGIN PRIVATE KEY-----') || decoded.trim().startsWith('{')) {
+        privateKey = decoded;
+      }
+    } catch (e) {
+      // If not base64, keep original string
+    }
+
+    // If it's the full service account JSON object
+    if (privateKey.trim().startsWith('{')) {
       try {
-        const decoded = Buffer.from(privateKey, 'base64').toString('utf8');
-        if (decoded.trim().startsWith('{')) {
-          const serviceAccount = JSON.parse(decoded);
-          privateKey = serviceAccount.private_key;
-        } else {
-          privateKey = decoded;
-        }
+        const serviceAccount = JSON.parse(privateKey);
+        privateKey = serviceAccount.private_key;
       } catch (e) {
-        // If base64 decode fails, keep the original string
+        throw new Error("Failed to parse JSON service account from private key env var.");
       }
     }
 
-    // Fix escaped newlines if any exist
+    // Fix escaped newlines (\n) to actual newlines
     if (privateKey.includes('\\n')) {
       privateKey = privateKey.replace(/\\n/g, '\n');
     }
+
+    privateKey = privateKey.trim();
 
     debugInfo = {
       hasProjectId: !!projectId,
       hasClientEmail: !!clientEmail,
       keyLength: privateKey.length,
-      startsWithHeader: privateKey.includes('-----BEGIN PRIVATE KEY-----')
+      startsWithHeader: privateKey.startsWith('-----BEGIN PRIVATE KEY-----'),
+      endsWithHeader: privateKey.endsWith('-----END PRIVATE KEY-----')
     };
 
     if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-      throw new Error("Private key does not contain valid PEM header after processing.");
+      throw new Error("Private key missing valid PEM header after processing.");
     }
 
     admin.initializeApp({
