@@ -18,46 +18,44 @@ if (!admin.apps.length) {
       throw new Error(`Missing env vars: ${missing.join(', ')}`);
     }
 
-    // Clean surrounding quotes or whitespace
     let privateKey = rawKey.trim().replace(/^["']|["']$/g, '');
 
-    // Try decoding Base64 if it's encoded
+    // 1. Try Base64 decoding
     try {
       const decoded = Buffer.from(privateKey, 'base64').toString('utf8');
-      if (decoded.includes('-----BEGIN PRIVATE KEY-----') || decoded.trim().startsWith('{')) {
+      if (decoded.trim().startsWith('{') || decoded.includes('-----BEGIN PRIVATE KEY-----')) {
         privateKey = decoded;
       }
     } catch (e) {
-      // If not base64, keep original string
+      // Keep original if not base64
     }
 
-    // If it's the full service account JSON object
+    // 2. If it's a JSON service account object
     if (privateKey.trim().startsWith('{')) {
       try {
         const serviceAccount = JSON.parse(privateKey);
         privateKey = serviceAccount.private_key;
       } catch (e) {
-        throw new Error("Failed to parse JSON service account from private key env var.");
+        throw new Error("Failed to parse JSON from Base64 string.");
       }
     }
 
-    // Fix escaped newlines (\n) to actual newlines
-    if (privateKey.includes('\\n')) {
-      privateKey = privateKey.replace(/\\n/g, '\n');
-    }
+    // 3. Fix escaped newlines (\n) to actual newline characters
+    privateKey = privateKey.replace(/\\n/g, '\n');
 
-    privateKey = privateKey.trim();
+    // Clean any surrounding quotes
+    privateKey = privateKey.trim().replace(/^["']|["']$/g, '');
 
     debugInfo = {
       hasProjectId: !!projectId,
       hasClientEmail: !!clientEmail,
       keyLength: privateKey.length,
-      startsWithHeader: privateKey.startsWith('-----BEGIN PRIVATE KEY-----'),
-      endsWithHeader: privateKey.endsWith('-----END PRIVATE KEY-----')
+      hasBeginHeader: privateKey.includes('-----BEGIN PRIVATE KEY-----'),
+      hasEndHeader: privateKey.includes('-----END PRIVATE KEY-----')
     };
 
-    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-      throw new Error("Private key missing valid PEM header after processing.");
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') || !privateKey.includes('-----END PRIVATE KEY-----')) {
+      throw new Error("Private key missing valid PEM headers after processing.");
     }
 
     admin.initializeApp({
