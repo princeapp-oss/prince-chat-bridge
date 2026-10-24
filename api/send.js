@@ -9,15 +9,12 @@ if (!admin.apps.length) {
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-    // --- DIAGNOSTIC INFO ---
     debugInfo = {
       hasProjectId: !!projectId,
       hasClientEmail: !!clientEmail,
       hasPrivateKey: !!privateKey,
-      keyLength: privateKey ? privateKey.length : 0,
-      preview: privateKey ? privateKey.substring(0, 30) + '...' : 'NONE'
+      keyLength: privateKey ? privateKey.length : 0
     };
-    // -----------------------
 
     let missing = [];
     if (!projectId) missing.push('PROJECT_ID');
@@ -28,18 +25,24 @@ if (!admin.apps.length) {
       throw new Error(`Missing env vars: ${missing.join(', ')}`);
     }
 
+    // --- FOOLPROOF PRIVATE KEY REBUILDER ---
     privateKey = privateKey.trim().replace(/^["']|["']$/g, '');
     privateKey = privateKey.replace(/\\n/g, '\n');
 
-    if (!privateKey.includes('\n') || privateKey.indexOf('\n') < 30) {
-      const cleanBody = privateKey
-        .replace('-----BEGIN PRIVATE KEY-----', '')
-        .replace('-----END PRIVATE KEY-----', '')
-        .replace(/\s+/g, '');
+    // Headers, footers aur saare extra spaces/broken newlines hata kar sirf base64 data nikalo
+    const base64Clean = privateKey
+      .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+      .replace(/-----END PRIVATE KEY-----/g, '')
+      .replace(/[\r\n\s]+/g, '');
 
-      const chunked = cleanBody.match(/.{1,64}/g).join('\n');
-      privateKey = `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----`;
+    // Ab us base64 data ko bilkul saaf 64-characters ke chunks mein fir se build karo
+    const chunks = [];
+    for (let i = 0; i < base64Clean.length; i += 64) {
+      chunks.push(base64Clean.substring(i, i + 64));
     }
+
+    privateKey = `-----BEGIN PRIVATE KEY-----\n${chunks.join('\n')}\n-----END PRIVATE KEY-----`;
+    // ---------------------------------------
 
     admin.initializeApp({
       credential: admin.credential.cert({
