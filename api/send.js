@@ -10,7 +10,22 @@ if (!admin.apps.length) {
       throw new Error("FIREBASE_SERVICE_ACCOUNT environment variable is missing.");
     }
 
-    let serviceAccount = JSON.parse(rawEnv);
+    let serviceAccount;
+    
+    try {
+      // 1. Pehle normal parse karke dekho
+      serviceAccount = JSON.parse(rawEnv);
+    } catch (e1) {
+      try {
+        // 2. Agar base64 encoded hai toh decode karo
+        const decoded = Buffer.from(rawEnv, 'base64').toString('utf8');
+        serviceAccount = JSON.parse(decoded);
+      } catch (e2) {
+        // 3. Agar raw multiline JSON hai toh newlines ko safely escape karo
+        const sanitized = rawEnv.replace(/\r?\n/g, '\\n').replace(/\t/g, '\\t');
+        serviceAccount = JSON.parse(sanitized);
+      }
+    }
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
