@@ -9,13 +9,6 @@ if (!admin.apps.length) {
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-    debugInfo = {
-      hasProjectId: !!projectId,
-      hasClientEmail: !!clientEmail,
-      hasPrivateKey: !!privateKey,
-      keyLength: privateKey ? privateKey.length : 0
-    };
-
     let missing = [];
     if (!projectId) missing.push('PROJECT_ID');
     if (!clientEmail) missing.push('CLIENT_EMAIL');
@@ -25,20 +18,39 @@ if (!admin.apps.length) {
       throw new Error(`Missing env vars: ${missing.join(', ')}`);
     }
 
+    // Clean surrounding quotes or whitespace
     privateKey = privateKey.trim().replace(/^["']|["']$/g, '');
 
-    // Agar key Base64 encoded hai (PEM header nahi hai)
+    // Check if it's Base64 encoded (doesn't contain PEM header yet)
     if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-      const decoded = Buffer.from(privateKey, 'base64').toString('utf8');
-      if (decoded.trim().startsWith('{')) {
-        const serviceAccount = JSON.parse(decoded);
-        privateKey = serviceAccount.private_key;
-      } else {
-        privateKey = decoded;
+      try {
+        const decoded = Buffer.from(privateKey, 'base64').toString('utf8');
+        if (decoded.trim().startsWith('{')) {
+          const serviceAccount = JSON.parse(decoded);
+          privateKey = serviceAccount.private_key;
+        } else {
+          privateKey = decoded;
+        }
+      } catch (e) {
+        // If base64 decode fails, keep the original string
       }
     }
 
-    privateKey = privateKey.replace(/\\n/g, '\n');
+    // Fix escaped newlines if any exist
+    if (privateKey.includes('\\n')) {
+      privateKey = privateKey.replace(/\\n/g, '\n');
+    }
+
+    debugInfo = {
+      hasProjectId: !!projectId,
+      hasClientEmail: !!clientEmail,
+      keyLength: privateKey.length,
+      startsWithHeader: privateKey.includes('-----BEGIN PRIVATE KEY-----')
+    };
+
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      throw new Error("Private key does not contain valid PEM header after processing.");
+    }
 
     admin.initializeApp({
       credential: admin.credential.cert({
