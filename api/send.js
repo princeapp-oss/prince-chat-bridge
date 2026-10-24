@@ -2,26 +2,29 @@ import admin from 'firebase-admin';
 
 if (!admin.apps.length) {
   try {
-    let serviceAccount;
-    const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-
-    if (!rawServiceAccount) {
-      throw new Error("FIREBASE_SERVICE_ACCOUNT is missing");
+    let serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT;
+    
+    if (!serviceAccountEnv) {
+      throw new Error("FIREBASE_SERVICE_ACCOUNT environment variable is missing.");
     }
 
+    let serviceAccount;
     try {
-      serviceAccount = JSON.parse(rawServiceAccount);
+      // Pehle normal JSON parse karke dekhte hain
+      serviceAccount = JSON.parse(serviceAccountEnv);
     } catch (e) {
-      // Newlines aur escaped characters ko clean karne ke liye
-      const formatted = rawServiceAccount.replace(/\\n/g, '\n');
-      serviceAccount = JSON.parse(formatted);
+      // Agar raw newlines ya formatting ki wajah se error aaye, toh unhe safely escape karke parse karo
+      const sanitized = serviceAccountEnv
+        .replace(/\r?\n/g, '\\n')
+        .replace(/\t/g, '\\t');
+      serviceAccount = JSON.parse(sanitized);
     }
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
   } catch (error) {
-    console.error("Firebase admin initialization error:", error);
+    console.error("Firebase initialization error:", error);
   }
 }
 
@@ -40,8 +43,8 @@ export default async function handler(req, res) {
     const message = {
       token: token,
       notification: {
-        title: title || 'Test Title',
-        body: body || 'Test Body',
+        title: title || 'PRinceApp Test',
+        body: body || 'Notification working successfully!',
       },
     };
 
