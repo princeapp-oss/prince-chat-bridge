@@ -1,36 +1,34 @@
 import admin from 'firebase-admin';
 
+let initError = null;
+
 if (!admin.apps.length) {
   try {
-    let serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT;
+    let rawEnv = process.env.FIREBASE_SERVICE_ACCOUNT;
     
-    if (!serviceAccountEnv) {
+    if (!rawEnv) {
       throw new Error("FIREBASE_SERVICE_ACCOUNT environment variable is missing.");
     }
 
-    let serviceAccount;
-    try {
-      // Pehle normal JSON parse karke dekhte hain
-      serviceAccount = JSON.parse(serviceAccountEnv);
-    } catch (e) {
-      // Agar raw newlines ya formatting ki wajah se error aaye, toh unhe safely escape karke parse karo
-      const sanitized = serviceAccountEnv
-        .replace(/\r?\n/g, '\\n')
-        .replace(/\t/g, '\\t');
-      serviceAccount = JSON.parse(sanitized);
-    }
+    let serviceAccount = JSON.parse(rawEnv);
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
   } catch (error) {
-    console.error("Firebase initialization error:", error);
+    initError = error.message;
+    console.error("Firebase initialization failed:", error);
   }
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Agar initialization fail hui hai, toh exact error turant return karo
+  if (initError) {
+    return res.status(500).json({ error: `Initialization Failed: ${initError}` });
   }
 
   try {
