@@ -17,9 +17,22 @@ if (!admin.apps.length) {
       throw new Error(`Missing env vars: ${missing.join(', ')}`);
     }
 
-    // Private key ke extra quotes aur literal \n ko properly clean karo
+    // --- BULLETPROOF PRIVATE KEY AUTO-REPAIR ---
     privateKey = privateKey.trim().replace(/^["']|["']$/g, '');
     privateKey = privateKey.replace(/\\n/g, '\n');
+
+    // Agar Vercel ne newlines ko uda diya hai ya key ek line mein ho gayi hai:
+    if (!privateKey.includes('\n') || privateKey.indexOf('\n') < 30) {
+      const cleanBody = privateKey
+        .replace('-----BEGIN PRIVATE KEY-----', '')
+        .replace('-----END PRIVATE KEY-----', '')
+        .replace(/\s+/g, ''); // Sabhi extra spaces/broken lines hata do
+
+      // 64 characters ke chunks mein format karke proper PEM key banao
+      const chunked = cleanBody.match(/.{1,64}/g).join('\n');
+      privateKey = `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----`;
+    }
+    // ------------------------------------------
 
     admin.initializeApp({
       credential: admin.credential.cert({
@@ -39,7 +52,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Agar initialization fail ho, toh poora exact error message return karo
   if (initError) {
     return res.status(500).json({ error: `Init Failed: ${initError}` });
   }
@@ -65,4 +77,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: error.message });
   }
 }
-
