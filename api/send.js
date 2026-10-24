@@ -25,24 +25,20 @@ if (!admin.apps.length) {
       throw new Error(`Missing env vars: ${missing.join(', ')}`);
     }
 
-    // --- FOOLPROOF PRIVATE KEY REBUILDER ---
     privateKey = privateKey.trim().replace(/^["']|["']$/g, '');
-    privateKey = privateKey.replace(/\\n/g, '\n');
 
-    // Headers, footers aur saare extra spaces/broken newlines hata kar sirf base64 data nikalo
-    const base64Clean = privateKey
-      .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-      .replace(/-----END PRIVATE KEY-----/g, '')
-      .replace(/[\r\n\s]+/g, '');
-
-    // Ab us base64 data ko bilkul saaf 64-characters ke chunks mein fir se build karo
-    const chunks = [];
-    for (let i = 0; i < base64Clean.length; i += 64) {
-      chunks.push(base64Clean.substring(i, i + 64));
+    // Agar key Base64 encoded hai (PEM header nahi hai)
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      const decoded = Buffer.from(privateKey, 'base64').toString('utf8');
+      if (decoded.trim().startsWith('{')) {
+        const serviceAccount = JSON.parse(decoded);
+        privateKey = serviceAccount.private_key;
+      } else {
+        privateKey = decoded;
+      }
     }
 
-    privateKey = `-----BEGIN PRIVATE KEY-----\n${chunks.join('\n')}\n-----END PRIVATE KEY-----`;
-    // ---------------------------------------
+    privateKey = privateKey.replace(/\\n/g, '\n');
 
     admin.initializeApp({
       credential: admin.credential.cert({
