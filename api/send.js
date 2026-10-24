@@ -4,19 +4,28 @@ let initError = null;
 
 if (!admin.apps.length) {
   try {
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY 
-      ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') 
-      : undefined;
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-    if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !privateKey) {
-      throw new Error("Missing Firebase environment variables (Project ID, Client Email, or Private Key).");
+    // Check karein kaun sa variable missing hai
+    let missing = [];
+    if (!projectId) missing.push('PROJECT_ID');
+    if (!clientEmail) missing.push('CLIENT_EMAIL');
+    if (!privateKey) missing.push('PRIVATE_KEY');
+
+    if (missing.length > 0) {
+      throw new Error(`Missing env vars: ${missing.join(', ')}`);
     }
+
+    // Newlines ko properly format karein
+    privateKey = privateKey.replace(/\\n/g, '\n');
 
     admin.initializeApp({
       credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: privateKey,
+        projectId,
+        clientEmail,
+        privateKey,
       }),
     });
   } catch (error) {
@@ -30,6 +39,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Ab exact error message seedha response mein dikhega
   if (initError) {
     return res.status(500).json({ error: `Initialization Failed: ${initError}` });
   }
