@@ -4,31 +4,20 @@ let initError = null;
 
 if (!admin.apps.length) {
   try {
-    let rawEnv = process.env.FIREBASE_SERVICE_ACCOUNT;
-    
-    if (!rawEnv) {
-      throw new Error("FIREBASE_SERVICE_ACCOUNT environment variable is missing.");
-    }
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY 
+      ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') 
+      : undefined;
 
-    let serviceAccount;
-    
-    try {
-      // 1. Pehle normal parse karke dekho
-      serviceAccount = JSON.parse(rawEnv);
-    } catch (e1) {
-      try {
-        // 2. Agar base64 encoded hai toh decode karo
-        const decoded = Buffer.from(rawEnv, 'base64').toString('utf8');
-        serviceAccount = JSON.parse(decoded);
-      } catch (e2) {
-        // 3. Agar raw multiline JSON hai toh newlines ko safely escape karo
-        const sanitized = rawEnv.replace(/\r?\n/g, '\\n').replace(/\t/g, '\\t');
-        serviceAccount = JSON.parse(sanitized);
-      }
+    if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !privateKey) {
+      throw new Error("Missing Firebase environment variables (Project ID, Client Email, or Private Key).");
     }
 
     admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: privateKey,
+      }),
     });
   } catch (error) {
     initError = error.message;
@@ -41,7 +30,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Agar initialization fail hui hai, toh exact error turant return karo
   if (initError) {
     return res.status(500).json({ error: `Initialization Failed: ${initError}` });
   }
