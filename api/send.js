@@ -1,12 +1,23 @@
 import admin from 'firebase-admin';
 
 let initError = null;
+let debugInfo = {};
 
 if (!admin.apps.length) {
   try {
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+    // --- DIAGNOSTIC INFO ---
+    debugInfo = {
+      hasProjectId: !!projectId,
+      hasClientEmail: !!clientEmail,
+      hasPrivateKey: !!privateKey,
+      keyLength: privateKey ? privateKey.length : 0,
+      preview: privateKey ? privateKey.substring(0, 30) + '...' : 'NONE'
+    };
+    // -----------------------
 
     let missing = [];
     if (!projectId) missing.push('PROJECT_ID');
@@ -17,7 +28,6 @@ if (!admin.apps.length) {
       throw new Error(`Missing env vars: ${missing.join(', ')}`);
     }
 
-    // --- BULLETPROOF PRIVATE KEY AUTO-REPAIR ---
     privateKey = privateKey.trim().replace(/^["']|["']$/g, '');
     privateKey = privateKey.replace(/\\n/g, '\n');
 
@@ -30,7 +40,6 @@ if (!admin.apps.length) {
       const chunked = cleanBody.match(/.{1,64}/g).join('\n');
       privateKey = `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----`;
     }
-    // ------------------------------------------
 
     admin.initializeApp({
       credential: admin.credential.cert({
@@ -40,7 +49,7 @@ if (!admin.apps.length) {
       }),
     });
   } catch (error) {
-    initError = error.message;
+    initError = `${error.message} | Debug: ${JSON.stringify(debugInfo)}`;
     console.error("Firebase initialization failed:", error);
   }
 }
@@ -51,7 +60,7 @@ export default async function handler(req, res) {
   }
 
   if (initError) {
-    return res.status(500).json({ error: `Init Failed: ${initError}` });
+    return res.status(500).json({ error: initError });
   }
 
   try {
