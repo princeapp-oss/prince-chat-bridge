@@ -93,6 +93,15 @@ export default async function handler(req, res) {
         title: title || 'PRinceApp Test',
         body: body || 'Notification working successfully!',
       },
+      // 👇 Yeh naya block add kiya hai taaki Android system channel match karke notification show kare
+      android: {
+        notification: {
+          channelId: 'prince_chat_notifications',
+          priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
+      },
     };
 
     const response = await admin.messaging().send(message);
