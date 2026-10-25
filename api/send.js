@@ -20,17 +20,13 @@ if (!admin.apps.length) {
 
     let privateKey = rawKey.trim().replace(/^["']|["']$/g, '');
 
-    // 1. Try Base64 decoding
     try {
       const decoded = Buffer.from(privateKey, 'base64').toString('utf8');
       if (decoded.trim().startsWith('{') || decoded.includes('-----BEGIN PRIVATE KEY-----')) {
         privateKey = decoded;
       }
-    } catch (e) {
-      // Keep original if not base64
-    }
+    } catch (e) {}
 
-    // 2. If it's a JSON service account object
     if (privateKey.trim().startsWith('{')) {
       try {
         const serviceAccount = JSON.parse(privateKey);
@@ -40,23 +36,7 @@ if (!admin.apps.length) {
       }
     }
 
-    // 3. Fix escaped newlines (\n) to actual newline characters
-    privateKey = privateKey.replace(/\\n/g, '\n');
-
-    // Clean any surrounding quotes
-    privateKey = privateKey.trim().replace(/^["']|["']$/g, '');
-
-    debugInfo = {
-      hasProjectId: !!projectId,
-      hasClientEmail: !!clientEmail,
-      keyLength: privateKey.length,
-      hasBeginHeader: privateKey.includes('-----BEGIN PRIVATE KEY-----'),
-      hasEndHeader: privateKey.includes('-----END PRIVATE KEY-----')
-    };
-
-    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') || !privateKey.includes('-----END PRIVATE KEY-----')) {
-      throw new Error("Private key missing valid PEM headers after processing.");
-    }
+    privateKey = privateKey.replace(/\\n/g, '\n').trim().replace(/^["']|["']$/g, '');
 
     admin.initializeApp({
       credential: admin.credential.cert({
@@ -66,7 +46,7 @@ if (!admin.apps.length) {
       }),
     });
   } catch (error) {
-    initError = `${error.message} | Debug: ${JSON.stringify(debugInfo)}`;
+    initError = `${error.message}`;
     console.error("Firebase initialization failed:", error);
   }
 }
@@ -87,20 +67,15 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'FCM Token is required' });
     }
 
+    // 👇 DATA PAYLOAD (Ye Vivo par 100% chalega kyunki ye onMessageReceived ko trigger karega)
     const message = {
       token: token,
-      notification: {
+      data: {
         title: title || 'PRinceApp Test',
         body: body || 'Notification working successfully!',
       },
-      // 👇 Yeh naya block add kiya hai taaki Android system channel match karke notification show kare
       android: {
-        notification: {
-          channelId: 'prince_chat_notifications',
-          priority: 'high',
-          defaultSound: true,
-          defaultVibrateTimings: true,
-        },
+        priority: 'high',
       },
     };
 
