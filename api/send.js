@@ -1,7 +1,6 @@
 import admin from 'firebase-admin';
 
 let initError = null;
-let debugInfo = {};
 
 if (!admin.apps.length) {
   try {
@@ -9,17 +8,11 @@ if (!admin.apps.length) {
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     let rawKey = process.env.FIREBASE_PRIVATE_KEY;
 
-    let missing = [];
-    if (!projectId) missing.push('PROJECT_ID');
-    if (!clientEmail) missing.push('CLIENT_EMAIL');
-    if (!rawKey) missing.push('PRIVATE_KEY');
-
-    if (missing.length > 0) {
-      throw new Error(`Missing env vars: ${missing.join(', ')}`);
+    if (!projectId || !clientEmail || !rawKey) {
+      throw new Error("Missing Firebase environment variables.");
     }
 
     let privateKey = rawKey.trim().replace(/^["']|["']$/g, '');
-
     try {
       const decoded = Buffer.from(privateKey, 'base64').toString('utf8');
       if (decoded.trim().startsWith('{') || decoded.includes('-----BEGIN PRIVATE KEY-----')) {
@@ -46,8 +39,8 @@ if (!admin.apps.length) {
       }),
     });
   } catch (error) {
-    initError = `${error.message}`;
-    console.error("Firebase initialization failed:", error);
+    initError = error.message;
+    console.error("Firebase init failed:", error);
   }
 }
 
@@ -61,18 +54,35 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { token, title, body } = req.body;
-
-    if (!token) {
-      return res.status(400).json({ error: 'FCM Token is required' });
+    let requestBody = req.body;
+    if (typeof requestBody === 'string') {
+      try { requestBody = JSON.parse(requestBody); } catch (e) { requestBody = {}; }
     }
 
-    // 👇 DATA PAYLOAD (Ye Vivo par 100% chalega kyunki ye onMessageReceived ko trigger karega)
+    const { recipientUid, title, body } = requestBody;
+
+    if (!recipientUid) {
+      return res.status(400).json({ error: 'Recipient UID is required' });
+    }
+
+    // Firestore se recipient ka fcmToken nikalenge
+    const userDoc = await admin.firestore().collection('users').doc(recipientUid).get();
+    
+    if (!userDoc.exists || !userDoc.data().fcmToken) {
+      return res.status(404).json({ error: 'Recipient FCM Token not found in Firestore' });
+    }
+
+    const recipientToken = userDoc.data().fcmToken;
+
     const message = {
-      token: token,
+      token: recipientToken,
+      notification: {
+        title: title || 'New Message',
+        body: body || 'You have a new message',
+      },
       data: {
-        title: title || 'PRinceApp Test',
-        body: body || 'Notification working successfully!',
+        title: title || 'New Message',
+        body: body || 'You have a new message',
       },
       android: {
         priority: 'high',
