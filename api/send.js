@@ -54,9 +54,21 @@ export default async function handler(req, res) {
   }
 
   try {
+    // 🟢 Vercel Node.js Stream Body Parser (Fixes 400 Error)
     let requestBody = req.body;
-    if (typeof requestBody === 'string') {
-      try { requestBody = JSON.parse(requestBody); } catch (e) { requestBody = {}; }
+    if (!requestBody || typeof requestBody !== 'object') {
+      requestBody = await new Promise((resolve) => {
+        let data = '';
+        req.on('data', chunk => { data += chunk; });
+        req.on('end', () => {
+          try {
+            resolve(JSON.parse(data || '{}'));
+          } catch (e) {
+            resolve({});
+          }
+        });
+        req.on('error', () => resolve({}));
+      });
     }
 
     const { recipientUid, title, body } = requestBody;
