@@ -45,6 +45,15 @@ if (!admin.apps.length) {
 }
 
 export default async function handler(req, res) {
+  // CORS headers taaki request block na ho
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -54,40 +63,29 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 🟢 Vercel Node.js Stream Body Parser (Fixes 400 Error)
-    let requestBody = req.body;
-    if (!requestBody || typeof requestBody !== 'object') {
-      requestBody = await new Promise((resolve) => {
-        let data = '';
-        req.on('data', chunk => { data += chunk; });
-        req.on('end', () => {
-          try {
-            resolve(JSON.parse(data || '{}'));
-          } catch (e) {
-            resolve({});
-          }
-        });
-        req.on('error', () => resolve({}));
-      });
-    }
-
-    const { recipientUid, title, body } = requestBody;
+    // Vercel automatically parses JSON body into req.body
+    const requestBody = req.body || {};
+    const recipientUid = requestBody.recipientUid;
+    const title = requestBody.title;
+    const body = requestBody.body;
 
     if (!recipientUid) {
-      return res.status(400).json({ error: 'Recipient UID is required' });
+      return res.status(400).json({ error: 'Recipient UID is required', received: requestBody });
     }
 
-    // Firestore se recipient ka fcmToken nikalenge
+    // Firestore se recipient ka token nikalenge
     const userDoc = await admin.firestore().collection('users').doc(recipientUid).get();
     
-    if (!userDoc.exists || !userDoc.data().fcmToken) {
-      return res.status(404).json({ error: 'Recipient FCM Token not found in Firestore' });
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'Recipient user not found in Firestore' });
     }
 
+    const userData = userDoc.data();
+    const recipientToken = userData.fcmToken || userData.token;
 
-const userData = userDoc.data();
-const recipientToken = userData.fcmToken || userData.token;
-    
+    if (!recipientToken) {
+      return res.status(404).json({ error: 'Recipient FCM Token not found in Firestore' });
+    }
 
     const message = {
       token: recipientToken,
