@@ -84,7 +84,10 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'Recipient FCM Token not found in Firestore' });
     }
 
-    const recipientToken = userDoc.data().fcmToken;
+
+const userData = userDoc.data();
+const recipientToken = userData.fcmToken || userData.token;
+    
 
     const message = {
       token: recipientToken,
