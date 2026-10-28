@@ -45,7 +45,6 @@ if (!admin.apps.length) {
 }
 
 export default async function handler(req, res) {
-  // CORS headers taaki request block na ho
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -63,8 +62,31 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Vercel automatically parses JSON body into req.body
-    const requestBody = req.body || {};
+    // 🟢 Foolproof Body Parser for Vercel
+    let requestBody = req.body;
+    if (!requestBody || typeof requestBody !== 'object' || Object.keys(requestBody).length === 0) {
+      requestBody = await new Promise((resolve) => {
+        let data = '';
+        req.on('data', chunk => { data += chunk; });
+        req.on('end', () => {
+          try {
+            resolve(JSON.parse(data || '{}'));
+          } catch (e) {
+            resolve({});
+          }
+        });
+        req.on('error', () => resolve({}));
+      });
+    }
+
+    if (typeof requestBody === 'string') {
+      try {
+        requestBody = JSON.parse(requestBody);
+      } catch (e) {
+        requestBody = {};
+      }
+    }
+
     const recipientUid = requestBody.recipientUid;
     const title = requestBody.title;
     const body = requestBody.body;
@@ -73,7 +95,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Recipient UID is required', received: requestBody });
     }
 
-    // Firestore se recipient ka token nikalenge
     const userDoc = await admin.firestore().collection('users').doc(recipientUid).get();
     
     if (!userDoc.exists) {
