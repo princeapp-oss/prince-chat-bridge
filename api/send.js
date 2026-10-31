@@ -12,13 +12,23 @@ if (!admin.apps.length) {
       throw new Error("Missing Firebase environment variables.");
     }
 
+    // 🟢 Ultimate PEM Key Sanitizer
     let cleanKey = rawKey.trim();
+    
+    // Remove wrapping quotes if any
     if ((cleanKey.startsWith('"') && cleanKey.endsWith('"')) || (cleanKey.startsWith("'") && cleanKey.endsWith("'"))) {
       cleanKey = cleanKey.slice(1, -1);
     }
-    
-    // Ensure all types of newline formats are handled properly
-    cleanKey = cleanKey.replace(/\\n/g, '\n');
+
+    // Replace all variations of escaped newlines
+    cleanKey = cleanKey.replace(/\\n/g, '\n').replace(/\\\\n/g, '\n');
+
+    // If Vercel squished the key into a single line without line breaks, fix the PEM structure
+    if (!cleanKey.includes('\n') && cleanKey.includes('BEGIN PRIVATE KEY')) {
+      cleanKey = cleanKey
+        .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
+        .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
+    }
 
     admin.initializeApp({
       credential: admin.credential.cert({
