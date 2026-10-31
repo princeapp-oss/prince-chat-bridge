@@ -2,15 +2,23 @@ const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
     try {
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined
-            })
-        });
+        const privateKey = process.env.FIREBASE_PRIVATE_KEY 
+            ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') 
+            : undefined;
+
+        if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !privateKey) {
+            console.error("Missing Firebase Environment Variables on Vercel!");
+        } else {
+            admin.initializeApp({
+                credential: admin.credential.cert({
+                    projectId: process.env.FIREBASE_PROJECT_ID,
+                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                    privateKey: privateKey
+                })
+            });
+        }
     } catch (e) {
-        console.error('Firebase init error:', e.message);
+        console.error('Firebase init exception:', e.message);
     }
 }
 
@@ -29,7 +37,7 @@ module.exports = async (req, res) => {
 
     try {
         if (!admin.apps.length) {
-            return res.status(500).json({ error: "Firebase Admin SDK not initialized on Vercel" });
+            return res.status(500).json({ error: "Firebase Admin SDK not initialized. Check Vercel Environment Variables setup." });
         }
 
         const { token, title, body, senderId } = req.body;
@@ -53,7 +61,7 @@ module.exports = async (req, res) => {
         return res.status(200).json({ success: true, messageId: response });
 
     } catch (error) {
-        console.error("FCM Send Error Detail:", error);
-        return res.status(500).json({ error: error.message || "Unknown server error" });
+        console.error("FCM Send Error:", error.message);
+        return res.status(500).json({ error: error.message });
     }
 };
