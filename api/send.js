@@ -1,13 +1,11 @@
 const admin = require('firebase-admin');
 
-// Firebase Admin ko initialize karna (agar pehle se nahi hai)
 if (!admin.apps.length) {
     try {
         admin.initializeApp({
             credential: admin.credential.cert({
                 projectId: process.env.FIREBASE_PROJECT_ID,
                 clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                // Private key ki formatting handle karne ke liye
                 privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined
             })
         });
@@ -17,7 +15,6 @@ if (!admin.apps.length) {
 }
 
 module.exports = async (req, res) => {
-    // CORS headers
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -42,7 +39,6 @@ module.exports = async (req, res) => {
             return res.status(400).json({ error: 'Missing required fields (token or body)' });
         }
 
-        // 🟢 Firebase FCM Message Payload (Data values must be strings!)
         const message = {
             token: token,
             notification: {
@@ -52,7 +48,7 @@ module.exports = async (req, res) => {
             data: {
                 title: String(title || "PRince Chat"),
                 body: String(body),
-                senderId: String(senderId || "") // 👈 Direct chat opening ke liye
+                senderId: String(senderId || "")
             },
             android: {
                 priority: "high",
