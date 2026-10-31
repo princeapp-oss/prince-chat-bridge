@@ -1,25 +1,13 @@
 const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
-    try {
-        const privateKey = process.env.FIREBASE_PRIVATE_KEY 
-            ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') 
-            : undefined;
-
-        if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !privateKey) {
-            console.error("Missing Firebase Environment Variables on Vercel!");
-        } else {
-            admin.initializeApp({
-                credential: admin.credential.cert({
-                    projectId: process.env.FIREBASE_PROJECT_ID,
-                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                    privateKey: privateKey
-                })
-            });
-        }
-    } catch (e) {
-        console.error('Firebase init exception:', e.message);
-    }
+    admin.initializeApp({
+        credential: admin.credential.cert({
+            projectId: "YOUR_PROJECT_ID", // Yahan apna Firebase Project ID daal do
+            clientEmail: "YOUR_CLIENT_EMAIL", // Yahan service account ki client email daal do
+            privateKey: "YOUR_PRIVATE_KEY".replace(/\\n/g, '\n') // Yahan apni private key daal do
+        })
+    });
 }
 
 module.exports = async (req, res) => {
@@ -36,10 +24,6 @@ module.exports = async (req, res) => {
     }
 
     try {
-        if (!admin.apps.length) {
-            return res.status(500).json({ error: "Firebase Admin SDK not initialized. Check Vercel Environment Variables setup." });
-        }
-
         const { token, title, body, senderId } = req.body;
 
         if (!token || !body) {
@@ -58,10 +42,9 @@ module.exports = async (req, res) => {
         };
 
         const response = await admin.messaging().send(message);
-        return res.status(200).json({ success: true, messageId: response });
+        return res.status(200).json({ success: success = true, messageId: response });
 
-    } catch (error) {
-        console.error("FCM Send Error:", error.message);
+    }q catch (error) {
         return res.status(500).json({ error: error.message });
     }
 };
