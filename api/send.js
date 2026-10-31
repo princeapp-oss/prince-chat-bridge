@@ -1,13 +1,17 @@
 const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert({
-            projectId: process.env.FIREBASE_PROJECT_ID,
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined
-        })
-    });
+    try {
+        admin.initializeApp({
+            credential: admin.credential.cert({
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined
+            })
+        });
+    } catch (e) {
+        console.error('Firebase init error:', e.message);
+    }
 }
 
 module.exports = async (req, res) => {
@@ -24,21 +28,24 @@ module.exports = async (req, res) => {
     }
 
     try {
+        if (!admin.apps.length) {
+            return res.status(500).json({ error: "Firebase Admin SDK not initialized on Vercel" });
+        }
+
         const { token, title, body, senderId } = req.body;
 
         if (!token || !body) {
             return res.status(400).json({ error: 'Missing token or body' });
         }
 
-        // Sabse simple FCM payload jo kabhi fail nahi hota
         const message = {
             token: token,
             notification: {
-                title: title || "PRince Chat",
-                body: body
+                title: String(title || "PRince Chat"),
+                body: String(body)
             },
             data: {
-                senderId: senderId || ""
+                senderId: String(senderId || "")
             }
         };
 
@@ -46,7 +53,7 @@ module.exports = async (req, res) => {
         return res.status(200).json({ success: true, messageId: response });
 
     } catch (error) {
-        console.error("FCM Error:", error);
-        return res.status(500).json({ error: error.message });
+        console.error("FCM Send Error Detail:", error);
+        return res.status(500).json({ error: error.message || "Unknown server error" });
     }
 };
