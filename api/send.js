@@ -12,30 +12,19 @@ if (!admin.apps.length) {
       throw new Error("Missing Firebase environment variables.");
     }
 
-    let privateKey = rawKey.trim().replace(/^["']|["']$/g, '');
-    try {
-      const decoded = Buffer.from(privateKey, 'base64').toString('utf8');
-      if (decoded.trim().startsWith('{') || decoded.includes('-----BEGIN PRIVATE KEY-----')) {
-        privateKey = decoded;
-      }
-    } catch (e) {}
+    // Clean up quotes and formatting
+    let cleanKey = rawKey.trim().replace(/^["']|["']$/g, '');
 
-    if (privateKey.trim().startsWith('{')) {
-      try {
-        const serviceAccount = JSON.parse(privateKey);
-        privateKey = serviceAccount.private_key;
-      } catch (e) {
-        throw new Error("Failed to parse JSON from Base64 string.");
-      }
+    // Handle escaped newlines
+    if (cleanKey.includes('\\n')) {
+      cleanKey = cleanKey.replace(/\\n/g, '\n');
     }
-
-    privateKey = privateKey.replace(/\\n/g, '\n').trim().replace(/^["']|["']$/g, '');
 
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: projectId.trim(),
         clientEmail: clientEmail.trim(),
-        privateKey: privateKey,
+        privateKey: cleanKey,
       }),
     });
   } catch (error) {
@@ -58,11 +47,10 @@ export default async function handler(req, res) {
   }
 
   if (initError) {
-    return res.status(500).json({ error: initError });
+    return res.status(500).json({ error: `Init Error: ${initError}` });
   }
 
   try {
-    // 🟢 Foolproof Body Parser for Vercel
     let requestBody = req.body;
     if (!requestBody || typeof requestBody !== 'object' || Object.keys(requestBody).length === 0) {
       requestBody = await new Promise((resolve) => {
@@ -93,7 +81,7 @@ export default async function handler(req, res) {
     const senderId = requestBody.senderId;
 
     if (!recipientUid) {
-      return res.status(400).json({ error: 'Recipient UID is required', received: requestBody });
+      return res.status(400).json({ error: 'Recipient UID is required' });
     }
 
     const userDoc = await admin.firestore().collection('users').doc(recipientUid).get();
@@ -112,12 +100,12 @@ export default async function handler(req, res) {
     const message = {
       token: recipientToken,
       notification: {
-        title: title || 'PRince Chat',
-        body: body || 'You have a new message',
+        title: String(title || 'PRince Chat'),
+        body: String(body || 'You have a new message'),
       },
       data: {
-        title: title || 'PRince Chat',
-        body: body || 'You have a new message',
+        title: String(title || 'PRince Chat'),
+        body: String(body || 'You have a new message'),
         senderId: String(senderId || '')
       },
       android: {
