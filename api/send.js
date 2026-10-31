@@ -4,37 +4,21 @@ let initError = null;
 
 if (!admin.apps.length) {
   try {
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    let rawKey = process.env.FIREBASE_PRIVATE_KEY;
-
-    if (!projectId || !clientEmail || !rawKey) {
-      throw new Error("Missing Firebase environment variables.");
-    }
-
-    // 🟢 Ultimate PEM Key Sanitizer
-    let cleanKey = rawKey.trim();
+    // Yahan seedha apni details hardcode kar de taaki Vercel environment variable ka chakkar hi khatam ho jaye
+    const projectId = "prince-chat-app"; // Apni Firebase Project ID yahan daal
+    const clientEmail = "firebase-adminsdk-xxxxx@prince-chat-app.iam.gserviceaccount.com"; // Apni Client Email yahan daal
     
-    // Remove wrapping quotes if any
-    if ((cleanKey.startsWith('"') && cleanKey.endsWith('"')) || (cleanKey.startsWith("'") && cleanKey.endsWith("'"))) {
-      cleanKey = cleanKey.slice(1, -1);
-    }
-
-    // Replace all variations of escaped newlines
-    cleanKey = cleanKey.replace(/\\n/g, '\n').replace(/\\\\n/g, '\n');
-
-    // If Vercel squished the key into a single line without line breaks, fix the PEM structure
-    if (!cleanKey.includes('\n') && cleanKey.includes('BEGIN PRIVATE KEY')) {
-      cleanKey = cleanKey
-        .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
-        .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
-    }
+    // Apni private key ko yahan as it is paste kar dena (-----BEGIN PRIVATE KEY----- se lekar -----END PRIVATE KEY----- tak)
+    const privateKey = `-----BEGIN PRIVATE KEY----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC3...
+...apni saari key yahan daal dena...
+-----END PRIVATE KEY-----`.replace(/\\n/g, '\n');
 
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: projectId.trim(),
         clientEmail: clientEmail.trim(),
-        privateKey: cleanKey,
+        privateKey: privateKey,
       }),
     });
   } catch (error) {
