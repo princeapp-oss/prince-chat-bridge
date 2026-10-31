@@ -3,9 +3,9 @@ const admin = require('firebase-admin');
 if (!admin.apps.length) {
     admin.initializeApp({
         credential: admin.credential.cert({
-            projectId: "YOUR_PROJECT_ID", // Yahan apna Firebase Project ID daal do
-            clientEmail: "YOUR_CLIENT_EMAIL", // Yahan service account ki client email daal do
-            privateKey: "YOUR_PRIVATE_KEY".replace(/\\n/g, '\n') // Yahan apni private key daal do
+            projectId: "YAHAN_APNA_PROJECT_ID_DAALO", 
+            clientEmail: "YAHAN_APNI_CLIENT_EMAIL_DAALO", 
+            privateKey: "YAHAN_APNI_PRIVATE_KEY_DAALO".replace(/\\n/g, '\n')
         })
     });
 }
@@ -42,9 +42,10 @@ module.exports = async (req, res) => {
         };
 
         const response = await admin.messaging().send(message);
-        return res.status(200).json({ success: success = true, messageId: response });
+        return res.status(200).json({ success: true, messageId: response });
 
-    }q catch (error) {
+    } catch (error) {
+        console.error("FCM Error:", error.message);
         return res.status(500).json({ error: error.message });
     }
 };
