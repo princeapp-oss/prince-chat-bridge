@@ -12,13 +12,16 @@ if (!admin.apps.length) {
       throw new Error("Missing Firebase environment variables.");
     }
 
-    // Clean up quotes and formatting
-    let cleanKey = rawKey.trim().replace(/^["']|["']$/g, '');
-
-    // Handle escaped newlines
-    if (cleanKey.includes('\\n')) {
-      cleanKey = cleanKey.replace(/\\n/g, '\n');
+    // 🟢 Bulletproof Private Key Formatter
+    let cleanKey = rawKey.trim();
+    
+    // Remove leading/trailing quotes if Vercel added them
+    if ((cleanKey.startsWith('"') && cleanKey.endsWith('"')) || (cleanKey.startsWith("'") && cleanKey.endsWith("'"))) {
+      cleanKey = cleanKey.slice(1, -1);
     }
+
+    // Convert literal \n strings into actual newlines
+    cleanKey = cleanKey.replace(/\\n/g, '\n');
 
     admin.initializeApp({
       credential: admin.credential.cert({
