@@ -1,131 +1,73 @@
-import admin from 'firebase-admin';
+const admin = require('firebase-admin');
 
-let initError = null;
-
+// Firebase Admin ko initialize karna (agar pehle se nahi hai)
 if (!admin.apps.length) {
-  try {
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    let rawKey = process.env.FIREBASE_PRIVATE_KEY;
-
-    if (!projectId || !clientEmail || !rawKey) {
-      throw new Error("Missing Firebase environment variables.");
-    }
-
-    let privateKey = rawKey.trim().replace(/^["']|["']$/g, '');
     try {
-      const decoded = Buffer.from(privateKey, 'base64').toString('utf8');
-      if (decoded.trim().startsWith('{') || decoded.includes('-----BEGIN PRIVATE KEY-----')) {
-        privateKey = decoded;
-      }
-    } catch (e) {}
-
-    if (privateKey.trim().startsWith('{')) {
-      try {
-        const serviceAccount = JSON.parse(privateKey);
-        privateKey = serviceAccount.private_key;
-      } catch (e) {
-        throw new Error("Failed to parse JSON from Base64 string.");
-      }
-    }
-
-    privateKey = privateKey.replace(/\\n/g, '\n').trim().replace(/^["']|["']$/g, '');
-
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: projectId.trim(),
-        clientEmail: clientEmail.trim(),
-        privateKey: privateKey,
-      }),
-    });
-  } catch (error) {
-    initError = error.message;
-    console.error("Firebase init failed:", error);
-  }
-}
-
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  if (initError) {
-    return res.status(500).json({ error: initError });
-  }
-
-  try {
-    // 🟢 Foolproof Body Parser for Vercel
-    let requestBody = req.body;
-    if (!requestBody || typeof requestBody !== 'object' || Object.keys(requestBody).length === 0) {
-      requestBody = await new Promise((resolve) => {
-        let data = '';
-        req.on('data', chunk => { data += chunk; });
-        req.on('end', () => {
-          try {
-            resolve(JSON.parse(data || '{}'));
-          } catch (e) {
-            resolve({});
-          }
+        admin.initializeApp({
+            credential: admin.credential.cert({
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                // Private key ki formatting handle karne ke liye
+                privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined
+            })
         });
-        req.on('error', () => resolve({}));
-      });
+    } catch (e) {
+        console.error('Firebase initialization error:', e);
     }
-
-    if (typeof requestBody === 'string') {
-      try {
-        requestBody = JSON.parse(requestBody);
-      } catch (e) {
-        requestBody = {};
-      }
-    }
-
-    const recipientUid = requestBody.recipientUid;
-    const title = requestBody.title;
-    const body = requestBody.body;
-
-    if (!recipientUid) {
-      return res.status(400).json({ error: 'Recipient UID is required', received: requestBody });
-    }
-
-    const userDoc = await admin.firestore().collection('users').doc(recipientUid).get();
-    
-    if (!userDoc.exists) {
-      return res.status(404).json({ error: 'Recipient user not found in Firestore' });
-    }
-
-    const userData = userDoc.data();
-    const recipientToken = userData.fcmToken || userData.token;
-
-    if (!recipientToken) {
-      return res.status(404).json({ error: 'Recipient FCM Token not found in Firestore' });
-    }
-
-    const message = {
-      token: recipientToken,
-      notification: {
-        title: title || 'New Message',
-        body: body || 'You have a new message',
-      },
-      data: {
-        title: title || 'New Message',
-        body: body || 'You have a new message',
-      },
-      android: {
-        priority: 'high',
-      },
-    };
-
-    const response = await admin.messaging().send(message);
-    return res.status(200).json({ success: true, messageId: response });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
 }
+
+module.exports = async (req, res) => {
+    // CORS headers
+    res.setHeader('Access-Control-Allow-Credentials', true);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    res.setHeader(
+        'Access-Control-Allow-Headers',
+        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    );
+
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
+    }
+
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    try {
+        const { token, title, body, senderId } = req.body;
+
+        if (!token || !body) {
+            return res.status(400).json({ error: 'Missing required fields (token or body)' });
+        }
+
+        // 🟢 Firebase FCM Message Payload (Data values must be strings!)
+        const message = {
+            token: token,
+            notification: {
+                title: String(title || "PRince Chat"),
+                body: String(body)
+            },
+            data: {
+                title: String(title || "PRince Chat"),
+                body: String(body),
+                senderId: String(senderId || "") // 👈 Direct chat opening ke liye
+            },
+            android: {
+                priority: "high",
+                notification: {
+                    sound: "default",
+                    channelId: "prince_chat_notifications"
+                }
+            }
+        };
+
+        const response = await admin.messaging().send(message);
+        return res.status(200).json({ success: true, messageId: response });
+
+    } catch (error) {
+        console.error("FCM Send Error:", error);
+        return res.status(500).json({ error: error.message || "Internal server error" });
+    }
+};
