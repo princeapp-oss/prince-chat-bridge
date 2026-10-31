@@ -2,15 +2,21 @@ const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
     try {
+        let privateKey = process.env.FIREBASE_PRIVATE_KEY || '';
+        // Agar key ke andar literal \n string hai toh use real newline mein convert karo
+        if (privateKey.includes('\\n')) {
+            privateKey = privateKey.replace(/\\n/g, '\n');
+        }
+
         admin.initializeApp({
             credential: admin.credential.cert({
                 projectId: process.env.FIREBASE_PROJECT_ID,
                 clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined
+                privateKey: privateKey
             })
         });
     } catch (e) {
-        console.error('Firebase initialization error:', e);
+        console.error('Firebase initialization error details:', e.message);
     }
 }
 
@@ -33,6 +39,10 @@ module.exports = async (req, res) => {
     }
 
     try {
+        if (!admin.apps.length) {
+            throw new Error("Firebase Admin SDK failed to initialize. Check Vercel Environment Variables.");
+        }
+
         const { token, title, body, senderId } = req.body;
 
         if (!token || !body) {
@@ -40,7 +50,7 @@ module.exports = async (req, res) => {
         }
 
         const message = {
-            token: token,
+            token: String(token),
             notification: {
                 title: String(title || "PRince Chat"),
                 body: String(body)
@@ -63,7 +73,7 @@ module.exports = async (req, res) => {
         return res.status(200).json({ success: true, messageId: response });
 
     } catch (error) {
-        console.error("FCM Send Error:", error);
+        console.error("FCM Send Error:", error.message || error);
         return res.status(500).json({ error: error.message || "Internal server error" });
     }
 };
